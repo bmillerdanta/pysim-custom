@@ -921,9 +921,9 @@ class PySimCommands(CommandSet):
         help='IMSI to write to EF.IMSI (optional -- omit to skip)')
     configure_new_sim_parser.add_argument('--ehplmn', action='append', default=[],
         metavar='MCC:MNC',
-        help='Repeatable, e.g. --ehplmn 314:650 --ehplmn 440:011 (padded to 4 entries). Omit entirely to skip EF.EHPLMN.')
+        help='Repeatable, e.g. --ehplmn MCC1:MNC1 --ehplmn MCC2:MNC2 (padded to 4 entries). Omit entirely to skip EF.EHPLMN.')
     configure_new_sim_parser.add_argument('--msisdn-dialing-nr', default=None,
-        help='EF.MSISDN dialing_nr field, e.g. 811999999701f (optional -- omit to skip)')
+        help='EF.MSISDN dialing_nr field, e.g. NNNNNNNNNNf (optional -- omit to skip)')
     configure_new_sim_parser.add_argument('--msisdn-record', type=int, default=1,
         help='EF.MSISDN record number to update')
     configure_new_sim_parser.add_argument('--msisdn-len-of-bcd', type=int, default=7,
