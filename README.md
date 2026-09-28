@@ -58,6 +58,40 @@ A slightly dated video presentation about pySim-shell can be found at
 <https://media.ccc.de/v/osmodevcall-20210409-laforge-pysim-shell>.
 
 
+`configureNewSim` shell command
+--------------------------------
+
+`pySim-shell.py` provides a `configureNewSim` command that writes IMSI,
+EF.EHPLMN and EF.MSISDN to the currently selected card in one step. Each
+field is optional -- pass only the ones you want to update, and anything
+omitted is left untouched. It always starts from `select MF`, so it is
+safe to use as a line inside a `bulk_script` file to provision a whole
+stack of cards in one pass.
+
+Syntax:
+```
+configureNewSim --adm-hex ADM_PIN_HEX
+                 [--imsi IMSI]
+                 [--ehplmn MCC1:MNC1 [--ehplmn MCC2:MNC2 ...]]
+                 [--msisdn-dialing-nr DIALING_NR]
+                 [--msisdn-record RECORD_NR]
+                 [--msisdn-len-of-bcd LEN]
+```
+
+Example (writing all three fields):
+```
+configureNewSim --adm-hex A0A1A2A3A4A5A6A7 \
+                 --imsi 001010123456789 \
+                 --ehplmn 001:01 --ehplmn 002:01 \
+                 --msisdn-dialing-nr NNNNNNNNNN
+```
+
+Example (only updating the IMSI, e.g. from a `bulk_script` file):
+```
+configureNewSim --adm-hex A0A1A2A3A4A5A6A7 --imsi 001010123456789
+```
+
+
 pySim-shell vs. legacy tools
 ----------------------------
 

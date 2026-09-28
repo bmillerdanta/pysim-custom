@@ -913,17 +913,15 @@ class PySimCommands(CommandSet):
                 self._cmd.poutput("  %s" % a.lower())
 
     configure_new_sim_parser = argparse.ArgumentParser()
-    configure_new_sim_parser.add_argument('--adm-imsi-hex', required=True,
-        help='ADM PIN (hex) used to write EF.IMSI (only needed/used if --imsi is given)')
-    configure_new_sim_parser.add_argument('--adm-hplmn-msisdn-hex', required=True,
-        help='ADM PIN (hex) used to write EF.EHPLMN and EF.MSISDN (only needed/used if --ehplmn or --msisdn-dialing-nr is given)')
+    configure_new_sim_parser.add_argument('--adm-hex', required=True,
+        help='ADM PIN (hex) used to unlock writes for this card')
     configure_new_sim_parser.add_argument('--imsi', default=None,
         help='IMSI to write to EF.IMSI (optional -- omit to skip)')
     configure_new_sim_parser.add_argument('--ehplmn', action='append', default=[],
         metavar='MCC:MNC',
         help='Repeatable, e.g. --ehplmn MCC1:MNC1 --ehplmn MCC2:MNC2 (padded to 4 entries). Omit entirely to skip EF.EHPLMN.')
     configure_new_sim_parser.add_argument('--msisdn-dialing-nr', default=None,
-        help='EF.MSISDN dialing_nr field, e.g. NNNNNNNNNNf (optional -- omit to skip)')
+        help='EF.MSISDN dialing_nr field, e.g. NNNNNNNNNN (optional -- omit to skip)')
     configure_new_sim_parser.add_argument('--msisdn-record', type=int, default=1,
         help='EF.MSISDN record number to update')
     configure_new_sim_parser.add_argument('--msisdn-len-of-bcd', type=int, default=7,
@@ -932,18 +930,18 @@ class PySimCommands(CommandSet):
     @cmd2.with_argparser(configure_new_sim_parser)
     def do_configureNewSim(self, opts):
         """Write any combination of IMSI, EF.EHPLMN and EF.MSISDN to the currently selected card.
-        Pass only the fields you want to update -- anything omitted is left untouched. Safe to
-        call repeatedly from `bulk_script` across a stack of cards.
+        Pass only the fields you want to update -- anything omitted is left untouched. Verifies
+        the ADM PIN once up front, then applies each requested field. Safe to call repeatedly
+        from `bulk_script` across a stack of cards.
         """
         if not opts.imsi and not opts.ehplmn and not opts.msisdn_dialing_nr:
             self._cmd.poutput("Nothing to do -- pass at least one of --imsi / --ehplmn / --msisdn-dialing-nr")
             return
 
-        lines = []
+        lines = ["verify_adm --pin-is-hex %s" % opts.adm_hex]
 
         if opts.imsi:
             lines += [
-                "verify_adm --pin-is-hex %s" % opts.adm_imsi_hex,
                 "select MF", "select ADF.USIM", "select EF.IMSI",
                 "update_binary_decoded '%s'" % json.dumps({'imsi': opts.imsi}),
                 "read_binary_decoded",
@@ -958,7 +956,6 @@ class PySimCommands(CommandSet):
                 ehplmn_entries.append(None)
 
             lines += [
-                "verify_adm --pin-is-hex %s" % opts.adm_hplmn_msisdn_hex,
                 "select MF", "select ADF.USIM", "select EF.EHPLMN",
                 "update_binary_decoded '%s'" % json.dumps(ehplmn_entries),
                 "read_binary_decoded",
@@ -976,7 +973,6 @@ class PySimCommands(CommandSet):
                 'dialing_nr': opts.msisdn_dialing_nr,
             })
             lines += [
-                "verify_adm --pin-is-hex %s" % opts.adm_hplmn_msisdn_hex,
                 "select MF", "select ADF.USIM", "select EF.MSISDN",
                 "update_record_decoded %d '%s'" % (opts.msisdn_record, msisdn_json),
                 "read_record_decoded %d" % opts.msisdn_record,
