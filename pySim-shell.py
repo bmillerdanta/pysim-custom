@@ -912,6 +912,82 @@ class PySimCommands(CommandSet):
             for a in self._cmd.rs.mf.applications:
                 self._cmd.poutput("  %s" % a.lower())
 
+    configure_new_sim_parser = argparse.ArgumentParser()
+    configure_new_sim_parser.add_argument('--adm-imsi-hex', required=True,
+        help='ADM PIN (hex) used to write EF.IMSI (only needed/used if --imsi is given)')
+    configure_new_sim_parser.add_argument('--adm-hplmn-msisdn-hex', required=True,
+        help='ADM PIN (hex) used to write EF.EHPLMN and EF.MSISDN (only needed/used if --ehplmn or --msisdn-dialing-nr is given)')
+    configure_new_sim_parser.add_argument('--imsi', default=None,
+        help='IMSI to write to EF.IMSI (optional -- omit to skip)')
+    configure_new_sim_parser.add_argument('--ehplmn', action='append', default=[],
+        metavar='MCC:MNC',
+        help='Repeatable, e.g. --ehplmn 314:650 --ehplmn 440:011 (padded to 4 entries). Omit entirely to skip EF.EHPLMN.')
+    configure_new_sim_parser.add_argument('--msisdn-dialing-nr', default=None,
+        help='EF.MSISDN dialing_nr field, e.g. 811999999701f (optional -- omit to skip)')
+    configure_new_sim_parser.add_argument('--msisdn-record', type=int, default=1,
+        help='EF.MSISDN record number to update')
+    configure_new_sim_parser.add_argument('--msisdn-len-of-bcd', type=int, default=7,
+        help='len_of_bcd field for the MSISDN record')
+
+    @cmd2.with_argparser(configure_new_sim_parser)
+    def do_configureNewSim(self, opts):
+        """Write any combination of IMSI, EF.EHPLMN and EF.MSISDN to the currently selected card.
+        Pass only the fields you want to update -- anything omitted is left untouched. Safe to
+        call repeatedly from `bulk_script` across a stack of cards.
+        """
+        if not opts.imsi and not opts.ehplmn and not opts.msisdn_dialing_nr:
+            self._cmd.poutput("Nothing to do -- pass at least one of --imsi / --ehplmn / --msisdn-dialing-nr")
+            return
+
+        lines = []
+
+        if opts.imsi:
+            lines += [
+                "verify_adm --pin-is-hex %s" % opts.adm_imsi_hex,
+                "select MF", "select ADF.USIM", "select EF.IMSI",
+                "update_binary_decoded '%s'" % json.dumps({'imsi': opts.imsi}),
+                "read_binary_decoded",
+            ]
+
+        if opts.ehplmn:
+            ehplmn_entries = []
+            for pair in opts.ehplmn:
+                mcc, mnc = pair.split(':')
+                ehplmn_entries.append({'mcc': mcc, 'mnc': mnc})
+            while len(ehplmn_entries) < 4:
+                ehplmn_entries.append(None)
+
+            lines += [
+                "verify_adm --pin-is-hex %s" % opts.adm_hplmn_msisdn_hex,
+                "select MF", "select ADF.USIM", "select EF.EHPLMN",
+                "update_binary_decoded '%s'" % json.dumps(ehplmn_entries),
+                "read_binary_decoded",
+            ]
+
+        if opts.msisdn_dialing_nr:
+            msisdn_json = json.dumps({
+                'alpha_id': '',
+                'len_of_bcd': opts.msisdn_len_of_bcd,
+                'ton_npi': {
+                    'ext': True,
+                    'type_of_number': 'international',
+                    'numbering_plan_id': 'isdn_e164',
+                },
+                'dialing_nr': opts.msisdn_dialing_nr,
+            })
+            lines += [
+                "verify_adm --pin-is-hex %s" % opts.adm_hplmn_msisdn_hex,
+                "select MF", "select ADF.USIM", "select EF.MSISDN",
+                "update_record_decoded %d '%s'" % (opts.msisdn_record, msisdn_json),
+                "read_record_decoded %d" % opts.msisdn_record,
+            ]
+
+        for line in lines:
+            self._cmd.poutput("pySIM-shell> %s" % line)
+            stop = self._cmd.onecmd_plus_hooks(line)
+            if stop:
+                return stop
+
 @with_default_category('ISO7816 Commands')
 class Iso7816Commands(CommandSet):
     def __init__(self):
